@@ -1,9 +1,4 @@
-const formatRupiah = (value) =>
-  new Intl.NumberFormat("id-ID", {
-    style: "currency",
-    currency: "IDR",
-    minimumFractionDigits: 0,
-  }).format(value);
+import { formatRupiah } from "../lib/format";
 
 const thClass =
   "border-b-[3px] border-ink bg-yellow px-4 py-3 text-left text-[11px] font-bold tracking-[0.15em] text-ink uppercase";

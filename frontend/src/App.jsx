@@ -2,21 +2,29 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import SummaryCard from "./components/SummaryCard";
 import TransactionForm from "./components/TransactionForm";
 import TransactionList from "./components/TransactionList";
-
-const API_URL = "http://localhost:5000/api";
+import BudgetCard from "./components/BudgetCard";
+import AiChat from "./components/AiChat";
+import { apiGet, apiPost, apiPut, apiDelete } from "./lib/api";
 
 export default function App() {
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
+  const [budget, setBudget] = useState(null);
+  const [budgetLoaded, setBudgetLoaded] = useState(false);
+  const [savingBudget, setSavingBudget] = useState(false);
+
+  const [insight, setInsight] = useState(null);
+  const [comment, setComment] = useState(null);
+  const [chat, setChat] = useState([]);
+  const [thinking, setThinking] = useState(false);
+
   const fetchTransactions = useCallback(async () => {
     try {
-      setError("");
-      const res = await fetch(`${API_URL}/transactions`);
-      if (!res.ok) throw new Error("Gagal memuat transaksi");
-      const data = await res.json();
+      const data = await apiGet("/transactions");
       setTransactions(data);
+      setError("");
     } catch (err) {
       setError(err.message);
     } finally {
@@ -24,19 +32,96 @@ export default function App() {
     }
   }, []);
 
+  const fetchBudget = useCallback(async () => {
+    try {
+      const data = await apiGet("/budget");
+      setBudget(data.amount);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBudgetLoaded(true);
+    }
+  }, []);
+
+  const fetchInsight = useCallback(async () => {
+    try {
+      const data = await apiGet("/ai/insight");
+      setInsight(data);
+      setComment(null);
+    } catch (err) {
+      setError(err.message);
+    }
+  }, []);
+
+  const fetchChat = useCallback(async () => {
+    try {
+      const data = await apiGet("/chat?limit=30");
+      setChat(data);
+    } catch (err) {
+      setError(err.message);
+    }
+  }, []);
+
   useEffect(() => {
     fetchTransactions();
-  }, [fetchTransactions]);
+    fetchBudget();
+    fetchInsight();
+    fetchChat();
+  }, [fetchTransactions, fetchBudget, fetchInsight, fetchChat]);
+
+  const analyze = useCallback(async () => {
+    setThinking(true);
+    try {
+      const data = await apiPost("/ai/analyze", {});
+      setInsight(data);
+      setComment(data.chatMessage?.content || data.message);
+      if (data.chatMessage) {
+        setChat((prev) => [...prev, data.chatMessage]);
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setThinking(false);
+    }
+  }, []);
+
+  const handleTransactionAdded = useCallback(async () => {
+    await fetchTransactions();
+    await analyze();
+  }, [fetchTransactions, analyze]);
 
   const handleDelete = async (id) => {
     try {
-      const res = await fetch(`${API_URL}/transactions/${id}`, {
-        method: "DELETE",
-      });
-      if (!res.ok) throw new Error("Gagal menghapus transaksi");
+      await apiDelete(`/transactions/${id}`);
       setTransactions((prev) => prev.filter((t) => t.id !== id));
+      await analyze();
     } catch (err) {
       setError(err.message);
+    }
+  };
+
+  const handleSaveBudget = async (month, amount) => {
+    setSavingBudget(true);
+    try {
+      const data = await apiPut("/budget", { month, amount });
+      setBudget(data.amount);
+      await fetchInsight();
+    } finally {
+      setSavingBudget(false);
+    }
+  };
+
+  const handleSendMessage = async (message) => {
+    setThinking(true);
+    try {
+      const { userMessage, assistantMessage } = await apiPost("/chat", {
+        message,
+      });
+      setChat((prev) => [...prev, userMessage, assistantMessage]);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setThinking(false);
     }
   };
 
@@ -78,9 +163,17 @@ export default function App() {
           </div>
         )}
 
+        <BudgetCard
+          budget={budget}
+          insight={insight}
+          loaded={budgetLoaded}
+          saving={savingBudget}
+          onSave={handleSaveBudget}
+        />
+
         <div className="grid grid-cols-1 items-start gap-8 lg:grid-cols-5">
           <div className="lg:col-span-2">
-            <TransactionForm onSuccess={fetchTransactions} />
+            <TransactionForm onSuccess={handleTransactionAdded} />
           </div>
           <div className="lg:col-span-3">
             <TransactionList
@@ -90,6 +183,15 @@ export default function App() {
             />
           </div>
         </div>
+
+        <AiChat
+          insight={insight}
+          comment={comment}
+          chat={chat}
+          thinking={thinking}
+          aiEnabled={Boolean(insight?.aiEnabled)}
+          onSend={handleSendMessage}
+        />
       </main>
 
       <footer className="mx-auto max-w-6xl px-6 pb-14 sm:px-8">

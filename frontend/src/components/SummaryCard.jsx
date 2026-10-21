@@ -1,9 +1,4 @@
-const formatRupiah = (value) =>
-  new Intl.NumberFormat("id-ID", {
-    style: "currency",
-    currency: "IDR",
-    minimumFractionDigits: 0,
-  }).format(value);
+import { formatRupiah } from "../lib/format";
 
 export default function SummaryCard({ income, expense, balance }) {
   const cards = [

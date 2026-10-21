@@ -1,6 +1,6 @@
 import { useState } from "react";
-
-const API_URL = "http://localhost:5000/api";
+import { apiPost } from "../lib/api";
+import { todayISO } from "../lib/format";
 
 const inputClass =
   "w-full rounded-brutal border-[3px] border-ink bg-white px-4 py-3 text-sm font-medium text-ink placeholder:text-ink/50 transition focus:bg-yellow-soft focus:shadow-brutal-sm focus:outline-none";
@@ -11,13 +11,11 @@ const labelClass =
 const toggleBase =
   "rounded-brutal border-[3px] border-ink px-4 py-3 text-sm font-bold transition-all duration-150 active:translate-y-[2px] active:shadow-none";
 
-const today = () => new Date().toISOString().slice(0, 10);
-
 export default function TransactionForm({ onSuccess }) {
   const [type, setType] = useState("expense");
   const [amount, setAmount] = useState("");
   const [category, setCategory] = useState("");
-  const [date, setDate] = useState(today);
+  const [date, setDate] = useState(todayISO);
   const [description, setDescription] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -41,26 +39,17 @@ export default function TransactionForm({ onSuccess }) {
 
     try {
       setSubmitting(true);
-      const res = await fetch(`${API_URL}/transactions`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type,
-          amount: Number(amount),
-          category: category.trim(),
-          date,
-          description: description.trim(),
-        }),
+      await apiPost("/transactions", {
+        type,
+        amount: Number(amount),
+        category: category.trim(),
+        date,
+        description: description.trim(),
       });
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || "Gagal menambahkan transaksi");
-      }
 
       setAmount("");
       setCategory("");
-      setDate(today());
+      setDate(todayISO());
       setDescription("");
       setType("expense");
       onSuccess();
